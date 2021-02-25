@@ -130,8 +130,8 @@ public class Main {
 		 * multipart response with Vert.x HTTP implementation. It either requires
 		 * content-length, or demands transfer-encoding: chunked.
 		 * 
-		 * I haven't tried chunked transfer encoding with final implementation of
-		 * MJPEG frames encoding, but working with TCP is fun :)
+		 * I haven't tried chunked transfer encoding with final implementation of MJPEG
+		 * frames encoding, but working with TCP is fun :)
 		 */
 		NetServer tcpServer = vertx.createNetServer();
 
@@ -139,6 +139,7 @@ public class Main {
 			Buffer requestBuf = Buffer.buffer();
 			socket.handler(buf -> {
 				requestBuf.appendBuffer(buf);
+				// since it is a test project, we will support only the cases we expect
 				if (!(requestBuf.length() > 4 && requestBuf
 						.getString(requestBuf.length() - 4, requestBuf.length(), "UTF-8").equals("\r\n\r\n"))) {
 					return;
@@ -152,9 +153,10 @@ public class Main {
 							+ "Cache-control: no-store\r\n" //
 							+ "Content-Type: text/plain\r\n" //
 							+ "Content-Length: 5\r\n\r\n"//
-							+ "ERROR").onComplete(result -> {
-								socket.close();
-							});
+							+ "ERROR" //
+					).onComplete(result -> {
+						socket.close();
+					});
 					throw new IllegalStateException("Unsupported method: " + firstLineParts[0]);
 				}
 				if ("/".equals(firstLineParts[1])) {
@@ -168,11 +170,12 @@ public class Main {
 					socket.write("HTTP/1.1 200 OK\r\n" + "Cache-control: no-store\r\n" //
 							+ "Content-Type: text/html; encoding=utf-8\r\n" //
 							+ "Content-Length: " + indexHtml.length //
-							+ "\r\n\r\n").compose(v -> {
-								return socket.write(Buffer.buffer(indexHtml));
-							}).onComplete(result -> {
-								socket.close();
-							});
+							+ "\r\n\r\n" //
+					).compose(v -> {
+						return socket.write(Buffer.buffer(indexHtml));
+					}).onComplete(result -> {
+						socket.close();
+					});
 					return;
 				}
 				if ("/frames".equals(firstLineParts[1])) {
@@ -182,19 +185,20 @@ public class Main {
 							+ "Content-Type: multipart/x-mixed-replace; boundary=\"" + boundary + "\"\r\n\r\n"));
 					new Thread(() -> {
 						for (;;) {
-							future.set(future.get().compose(v -> {
-								return socket.write("--" + boundary + "\r\n" //
-										+ "Content-Type: image/" + imageFormat + "\r\n\r\n");
-							}).compose(v -> {
-								MatOfByte result = new MatOfByte();
-								Imgcodecs.imencode("." + imageFormat, lastFrame, result);
+							future.set(//
+									future.get().compose(v -> {
+										return socket.write("--" + boundary + "\r\n" //
+												+ "Content-Type: image/" + imageFormat + "\r\n\r\n");
+									}).compose(v -> {
+										MatOfByte result = new MatOfByte();
+										Imgcodecs.imencode("." + imageFormat, lastFrame, result);
 
-								byte[] resultArr = result.toArray();
-
-								return socket.write(Buffer.buffer(resultArr));
-							}).compose(v -> {
-								return socket.write("\r\n");
-							}));
+										byte[] resultArr = result.toArray();
+										return socket.write(Buffer.buffer(resultArr));
+									}).compose(v -> {
+										return socket.write("\r\n");
+									})//
+							);
 							try {
 								Thread.sleep(20);
 							} catch (InterruptedException e) {
