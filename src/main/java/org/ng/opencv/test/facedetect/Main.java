@@ -183,7 +183,7 @@ public class Main {
 					AtomicReference<Future<Void>> future = new AtomicReference<>(socket.write("HTTP/1.1 200 OK\r\n" //
 							+ "Cache-control: no-store\r\n" //
 							+ "Content-Type: multipart/x-mixed-replace; boundary=\"" + boundary + "\"\r\n\r\n"));
-					new Thread(() -> {
+					Thread senderThread = new Thread(() -> {
 						for (;;) {
 							future.set(//
 									future.get().compose(v -> {
@@ -202,10 +202,15 @@ public class Main {
 							try {
 								Thread.sleep(20);
 							} catch (InterruptedException e) {
-								log.log(Level.WARNING, "Sleep interrupted", e);
+								log.info("Image sending thread interrupted.");
+								return;
 							}
 						}
-					}).start();
+					});
+					senderThread.start();
+					socket.closeHandler(h -> {
+						senderThread.interrupt();
+					});
 					return;
 				}
 				socket.write("HTTP/1.1 404 Not found\r\n" //
